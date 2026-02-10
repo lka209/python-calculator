@@ -1,9 +1,7 @@
 import math
 from typing import TYPE_CHECKING
-
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QGridLayout, QPushButton
-
 from utils import converToNumber, isEmpty, isNumOrDot, isValidNumber
 from variables import MEDIUM_FONT_SIZE
 
