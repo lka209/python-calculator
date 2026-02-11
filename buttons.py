@@ -46,11 +46,13 @@ class ButtonsGrid(QGridLayout):
         self.info = info
         self.window = window
 
+        # Estado interno
         self._left = None
-        self._right = None
         self._op = None
-
+        self._reset_next = False  # Se True, próximo número sobrescreve display
         self.display.setText("0")
+        self.info.setText("")  # histórico acima do display
+
         self._makeGrid()
         
     def _makeGrid(self):
@@ -58,7 +60,6 @@ class ButtonsGrid(QGridLayout):
             for col_index, button_text in enumerate(row):
                 button = Button(button_text)
                 self.addWidget(button, row_index, col_index)
-
                 button.clicked.connect(
                     lambda checked, text=button_text: self._buttonClicked(text)
                 )
@@ -69,9 +70,10 @@ class ButtonsGrid(QGridLayout):
         # LIMPAR
         if text == "C":
             self._left = None
-            self._right = None
             self._op = None
+            self._reset_next = False
             self.display.setText("0")
+            self.info.setText("")
             return
 
         # BACKSPACE
@@ -95,6 +97,10 @@ class ButtonsGrid(QGridLayout):
         # IGUAL
         if text == "=":
             self._calculate()
+            self._op = None
+            self._left = None
+            self._reset_next = True
+            self.info.setText("")
             return
 
         # OPERADORES
@@ -111,16 +117,18 @@ class ButtonsGrid(QGridLayout):
                 self._left = converToNumber(current_value)
 
             self._op = text
-            self.display.setText("0")
+            # Atualiza histórico
+            self.info.setText(f"{self._left} {self._op}")
+            self._reset_next = True
             return
 
         # NÚMEROS E PONTO
         if isNumOrDot(text):
-            current_text = self.display.text()
-            if current_text == "0":
+            if self._reset_next or self.display.text() == "0":
                 new_text = text
+                self._reset_next = False
             else:
-                new_text = current_text + text
+                new_text = self.display.text() + text
 
             if isValidNumber(new_text):
                 self.display.setText(new_text)
@@ -129,30 +137,27 @@ class ButtonsGrid(QGridLayout):
         if self._left is None or self._op is None:
             return
 
-        self._right = converToNumber(self.display.text())
-
+        right_value = converToNumber(self.display.text())
         try:
             if self._op == "+":
-                result = self._left + self._right
+                result = self._left + right_value
             elif self._op == "-":
-                result = self._left - self._right
+                result = self._left - right_value
             elif self._op == "*":
-                result = self._left * self._right
+                result = self._left * right_value
             elif self._op == "/":
-                result = self._left / self._right
+                result = self._left / right_value
             elif self._op == "^":
-                result = math.pow(self._left, self._right)
+                result = math.pow(self._left, right_value)
             else:
                 return
 
-            # Atualiza display e prepara para próxima operação
             self.display.setText(str(result))
             self._left = result
-            self._right = None
-            self._op = None
+            self._reset_next = True
 
         except Exception:
             self.display.setText("Error")
             self._left = None
-            self._right = None
             self._op = None
+            self._reset_next = True
