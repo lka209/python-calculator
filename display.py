@@ -1,8 +1,8 @@
+# display.py
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QLineEdit
 from PySide6.QtGui import QKeyEvent
 from variables import MINIMUM_WIDTH, TEXT_MARGIN, MEDIUM_FONT_SIZE
-from utils import isEmpty, isNumOrDot
 
 class Display(QLineEdit):
     eqPressed = Signal()
@@ -76,5 +76,4 @@ class Display(QLineEdit):
             event.accept()
             return
 
-        # Qualquer outro evento
         super().keyPressEvent(event)

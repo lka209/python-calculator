@@ -1,38 +1,27 @@
+# buttons_grid.py
 import math
-from typing import TYPE_CHECKING
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QGridLayout, QPushButton
 from utils import converToNumber, isNumOrDot, isValidNumber
 from variables import MEDIUM_FONT_SIZE
 
-if TYPE_CHECKING:
-    from display import Display
-    from info import Info
-    from main_window import MainWindow
-
-
 class Button(QPushButton):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.configStyle()
-
-    def configStyle(self):
         font = self.font()
         font.setPixelSize(MEDIUM_FONT_SIZE)
         self.setFont(font)
         self.setMinimumSize(75, 75)
 
-
 class ButtonsGrid(QGridLayout):
-    def __init__(
-        self,
-        display: "Display",
-        info: "Info",
-        window: "MainWindow",
-        *args,
-        **kwargs
-    ):
+    def __init__(self, display, info, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.display = display
+        self.info = info
+
+        self._left = None
+        self._op = None
+        self._reset_next = False
 
         self._gridMask = [
             ["C", "◀", "^", "/"],
@@ -42,31 +31,19 @@ class ButtonsGrid(QGridLayout):
             ["N", "0", ".", "="],
         ]
 
-        self.display = display
-        self.info = info
-        self.window = window
-
-        # Estado interno
-        self._left = None
-        self._op = None
-        self._reset_next = False  # Se True, próximo número sobrescreve display
         self.display.setText("0")
-        self.info.setText("")  # histórico acima do display
-
+        self.info.setText("")
         self._makeGrid()
-        
+
     def _makeGrid(self):
-        for row_index, row in enumerate(self._gridMask):
-            for col_index, button_text in enumerate(row):
-                button = Button(button_text)
-                self.addWidget(button, row_index, col_index)
-                button.clicked.connect(
-                    lambda checked, text=button_text: self._buttonClicked(text)
-                )
+        for r, row in enumerate(self._gridMask):
+            for c, text in enumerate(row):
+                btn = Button(text)
+                self.addWidget(btn, r, c)
+                btn.clicked.connect(lambda checked, t=text: self._buttonClicked(t))
 
     @Slot()
     def _buttonClicked(self, text: str):
-
         # LIMPAR
         if text == "C":
             self._left = None
@@ -79,19 +56,13 @@ class ButtonsGrid(QGridLayout):
         # BACKSPACE
         if text == "◀":
             current = self.display.text()
-            if len(current) > 1:
-                self.display.setText(current[:-1])
-            else:
-                self.display.setText("0")
+            self.display.setText(current[:-1] if len(current) > 1 else "0")
             return
 
         # INVERTER SINAL
         if text == "N":
             current = self.display.text()
-            if current.startswith("-"):
-                self.display.setText(current[1:])
-            else:
-                self.display.setText("-" + current)
+            self.display.setText(current[1:] if current.startswith("-") else "-" + current)
             return
 
         # IGUAL
@@ -109,7 +80,6 @@ class ButtonsGrid(QGridLayout):
             if not isValidNumber(current_value):
                 return
 
-            # Se já existe operação pendente, calcula antes
             if self._left is not None and self._op is not None:
                 self._right = converToNumber(current_value)
                 self._calculate()
@@ -117,21 +87,16 @@ class ButtonsGrid(QGridLayout):
                 self._left = converToNumber(current_value)
 
             self._op = text
-            # Atualiza histórico
             self.info.setText(f"{self._left} {self._op}")
             self._reset_next = True
             return
 
         # NÚMEROS E PONTO
         if isNumOrDot(text):
-            if self._reset_next or self.display.text() == "0":
-                new_text = text
-                self._reset_next = False
-            else:
-                new_text = self.display.text() + text
-
+            new_text = text if self._reset_next or self.display.text() == "0" else self.display.text() + text
             if isValidNumber(new_text):
                 self.display.setText(new_text)
+                self._reset_next = False
 
     def _calculate(self):
         if self._left is None or self._op is None:
