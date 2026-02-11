@@ -23,47 +23,43 @@ class Display(QLineEdit):
         self.setTextMargins(*margins)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        text = event.text()
-        key = event.key()
-        KEYS = Qt.Key
+     key = event.key()
+     text = event.text()
+     KEYS = Qt.Key
 
-        if key in (KEYS.Key_Enter, KEYS.Key_Return, KEYS.Key_Equal):
-            self.eqPressed.emit()
-            event.accept()
-            return
+  
+    if key in (KEYS.Key_Return, KEYS.Key_Enter, KEYS.Key_Equal):
+        self.eqPressed.emit()
+        return
 
-        if key in (KEYS.Key_Backspace, KEYS.Key_Delete):
-            self.delPressed.emit()
-            event.accept()
-            return
+    if key in (KEYS.Key_Backspace, KEYS.Key_Delete):
+        self.delPressed.emit()
+        return
 
-        if key == KEYS.Key_Escape:
-            self.clearPressed.emit()
-            event.accept()
-            return
-        
-        if key in (
-            KEYS.Key_Plus,
-            KEYS.Key_Minus,
-            KEYS.Key_Slash,
-            KEYS.Key_Asterisk,
-        ):
-            self.operatorPressed.emit(text)
-            event.accept()
-            return
+    if key == KEYS.Key_Escape:
+        self.clearPressed.emit()
+        return
 
-        if key == KEYS.Key_P:
-            self.operatorPressed.emit("^")
-            event.accept()
-            return
+    if KEYS.Key_0 <= key <= KEYS.Key_9:
+        self.inputPressed.emit(str(key - KEYS.Key_0))
+        return
 
-        if isEmpty(text):
-            event.ignore()
-            return
+    if key in (KEYS.Key_Period, KEYS.Key_Comma):
+        self.inputPressed.emit(".")
+        return
 
-        if isNumOrDot(text):
-            self.inputPressed.emit(text)
-            event.accept()
-            return
-        
-        super().keyPressEvent(event)
+    if key in (
+        KEYS.Key_Plus,
+        KEYS.Key_Minus,
+        KEYS.Key_Slash,
+        KEYS.Key_Asterisk,
+    ):
+        self.operatorPressed.emit(text)
+        return
+
+    if key == KEYS.Key_P:
+        self.operatorPressed.emit("^")
+        return
+    
+    super().keyPressEvent(event)
+
