@@ -1,8 +1,9 @@
-# display.py
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtWidgets import QLineEdit
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeyEvent
-from variables import MINIMUM_WIDTH, TEXT_MARGIN, MEDIUM_FONT_SIZE
+from PySide6.QtWidgets import QLineEdit
+from utils import isEmpty, isNumOrDot
+from variables import BIG_FONT_SIZE, MINIMUM_WIDTH, TEXT_MARGIN
+
 
 class Display(QLineEdit):
     eqPressed = Signal()
@@ -17,63 +18,47 @@ class Display(QLineEdit):
 
     def configStyle(self):
         margins = [TEXT_MARGIN for _ in range(4)]
-        self.setStyleSheet(f"font-size: {MEDIUM_FONT_SIZE}px;")
-        self.setMinimumHeight(MEDIUM_FONT_SIZE * 2)
+        self.setStyleSheet(f'font-size: {BIG_FONT_SIZE}px;')
+        self.setMinimumHeight(BIG_FONT_SIZE * 2)
         self.setMinimumWidth(MINIMUM_WIDTH)
         self.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.setTextMargins(*margins)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        text = event.text().strip()
         key = event.key()
-        text = event.text()
         KEYS = Qt.Key
 
-        # ENTER / =
-        if key in (KEYS.Key_Return, KEYS.Key_Enter, KEYS.Key_Equal):
+        isEnter = key in [KEYS.Key_Enter, KEYS.Key_Return, KEYS.Key_Equal]
+        isDelete = key in [KEYS.Key_Backspace, KEYS.Key_Delete, KEYS.Key_D]
+        isEsc = key in [KEYS.Key_Escape, KEYS.Key_C]
+        isOperator = key in [
+            KEYS.Key_Plus, KEYS.Key_Minus, KEYS.Key_Slash, KEYS.Key_Asterisk,
+            KEYS.Key_P,
+        ]
+
+        if isEnter:
             self.eqPressed.emit()
-            event.accept()
-            return
+            return event.ignore()
 
-        # BACKSPACE / DELETE
-        if key in (KEYS.Key_Backspace, KEYS.Key_Delete):
+        if isDelete:
             self.delPressed.emit()
-            event.accept()
-            return
+            return event.ignore()
 
-        # ESC
-        if key == KEYS.Key_Escape:
+        if isEsc:
             self.clearPressed.emit()
-            event.accept()
-            return
+            return event.ignore()
 
-        # Números teclado principal
-        if KEYS.Key_0 <= key <= KEYS.Key_9:
-            self.inputPressed.emit(str(key - KEYS.Key_0))
-            event.accept()
-            return
-
-        # Números teclado numérico
-        if KEYS.Keypad0 <= key <= KEYS.Keypad9:
-            self.inputPressed.emit(str(key - KEYS.Keypad0))
-            event.accept()
-            return
-
-        # Ponto decimal
-        if key in (KEYS.Key_Period, KEYS.Key_Comma, KEYS.KeypadPeriod):
-            self.inputPressed.emit(".")
-            event.accept()
-            return
-
-        # Operadores
-        if key in (KEYS.Key_Plus, KEYS.Key_Minus, KEYS.Key_Slash, KEYS.Key_Asterisk):
+        if isOperator:
+            if text.lower() == 'p':
+                text = '^'
             self.operatorPressed.emit(text)
-            event.accept()
-            return
+            return event.ignore()
 
-        # Potência
-        if key == KEYS.Key_P:
-            self.operatorPressed.emit("^")
-            event.accept()
-            return
+        # Não passar daqui se não tiver texto
+        if isEmpty(text):
+            return event.ignore()
 
-        super().keyPressEvent(event)
+        if isNumOrDot(text):
+            self.inputPressed.emit(text)
+            return event.ignore()

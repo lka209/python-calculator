@@ -1,14 +1,23 @@
-# buttons_grid.py
 import math
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QGridLayout, QPushButton
-from utils import converToNumber, isNumOrDot, isValidNumber
+from utils import converToNumber, isEmpty, isNumOrDot, isValidNumber
 from variables import MEDIUM_FONT_SIZE
+
+if TYPE_CHECKING:
+    from display import Display
+    from info import Info
+    from main_window import MainWindow
 
 
 class Button(QPushButton):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.configStyle()
+
+    def configStyle(self):
         font = self.font()
         font.setPixelSize(MEDIUM_FONT_SIZE)
         self.setFont(font)
@@ -16,111 +25,189 @@ class Button(QPushButton):
 
 
 class ButtonsGrid(QGridLayout):
-    def __init__(self, display, info, *args, **kwargs):
+    def __init__(
+            self, display: 'Display', info: 'Info', window: 'MainWindow',
+            *args, **kwargs
+    ) -> None:
         super().__init__(*args, **kwargs)
-        self.display = display
-        self.info = info
-        
-        self._left = None
-        self._op = None
-        self._reset_next = False
 
         self._gridMask = [
-            ["C", "◀", "^", "/"],
-            ["7", "8", "9", "*"],
-            ["4", "5", "6", "-"],
-            ["1", "2", "3", "+"],
-            ["N", "0", ".", "="],
+            ['C', 'D', '^', '/'],
+            ['7', '8', '9', '*'],
+            ['4', '5', '6', '-'],
+            ['1', '2', '3', '+'],
+            ['N',  '0', '.', '='],
         ]
+        self.display = display
+        self.info = info
+        self.window = window
+        self._equation = ''
+        self._equationInitialValue = 'Sua conta'
+        self._left = None
+        self._right = None
+        self._op = None
 
-        self.display.setText("0")
-        self.info.setText("")
+        self.equation = self._equationInitialValue
         self._makeGrid()
 
-    def _makeGrid(self):
-        for r, row in enumerate(self._gridMask):
-            for c, text in enumerate(row):
-                btn = Button(text)
-                self.addWidget(btn, r, c)
-                btn.clicked.connect(lambda checked, t=text: self._buttonClicked(t))
+    @property
+    def equation(self):
+        return self._equation
 
-    def handleKey(self, text: str):
-        self._buttonClicked(text)
+    @equation.setter
+    def equation(self, value):
+        self._equation = value
+        self.info.setText(value)
+
+    def _makeGrid(self):
+        self.display.eqPressed.connect(self._eq)
+        self.display.delPressed.connect(self._backspace)
+        self.display.clearPressed.connect(self._clear)
+        self.display.inputPressed.connect(self._insertToDisplay)
+        self.display.operatorPressed.connect(self._configLeftOp)
+
+        for rowNumber, rowData in enumerate(self._gridMask):
+            for colNumber, buttonText in enumerate(rowData):
+                button = Button(buttonText)
+
+                if not isNumOrDot(buttonText) and not isEmpty(buttonText):
+                    button.setProperty('cssClass', 'specialButton')
+                    self._configSpecialButton(button)
+
+                self.addWidget(button, rowNumber, colNumber)
+                slot = self._makeSlot(self._insertToDisplay, buttonText)
+                self._connectButtonClicked(button, slot)
+
+    def _connectButtonClicked(self, button, slot):
+        button.clicked.connect(slot)  # type: ignore
+
+    def _configSpecialButton(self, button):
+        text = button.text()
+
+        if text == 'C':
+            self._connectButtonClicked(button, self._clear)
+
+        if text == 'D':
+            self._connectButtonClicked(button, self.display.backspace)
+
+        if text == 'N':
+            self._connectButtonClicked(button, self._invertNumber)
+
+        if text in '+-/*^':
+            self._connectButtonClicked(
+                button,
+                self._makeSlot(self._configLeftOp, text)
+            )
+
+        if text == '=':
+            self._connectButtonClicked(button, self._eq)
 
     @Slot()
-    def _buttonClicked(self, text: str):
-        if text == "C":
-            self._left = None
-            self._op = None
-            self._reset_next = False
-            self.display.setText("0")
-            self.info.setText("")
+    def _makeSlot(self, func, *args, **kwargs):
+        @ Slot(bool)
+        def realSlot(_):
+            func(*args, **kwargs)
+        return realSlot
+
+    @Slot()
+    def _invertNumber(self):
+        displayText = self.display.text()
+
+        if not isValidNumber(displayText):
             return
 
-        if text == "◀":
-            current = self.display.text()
-            self.display.setText(current[:-1] if len(current) > 1 else "0")
+        number = converToNumber(displayText) * -1
+        self.display.setText(str(number))
+
+    @Slot()
+    def _insertToDisplay(self, text):
+        newDisplayValue = self.display.text() + text
+
+        if not isValidNumber(newDisplayValue):
             return
 
-        if text == "N":
-            current = self.display.text()
-            self.display.setText(current[1:] if current.startswith("-") else "-" + current)
+        self.display.insert(text)
+        self.display.setFocus()
+
+    @Slot()
+    def _clear(self):
+        self._left = None
+        self._right = None
+        self._op = None
+        self.equation = self._equationInitialValue
+        self.display.clear()
+        self.display.setFocus()
+
+    @Slot()
+    def _configLeftOp(self, text):
+        displayText = self.display.text()  # Deverá ser meu número _left
+        self.display.clear()  # Limpa o display
+        self.display.setFocus()
+
+        # Se a pessoa clicou no operador sem
+        # configurar qualquer número
+        if not isValidNumber(displayText) and self._left is None:
+            self._showError('Você não digitou nada.')
             return
 
-        if text == "=":
-            self._calculate()
-            self._op = None
-            self._left = None
-            self._reset_next = True
-            self.info.setText("")
+        # Se houver algo no número da esquerda,
+        # não fazemos nada. Aguardaremos o número da direita.
+        if self._left is None:
+            self._left = converToNumber(displayText)
+
+        self._op = text
+        self.equation = f'{self._left} {self._op} ??'
+
+    @Slot()
+    def _eq(self):
+        displayText = self.display.text()
+
+        if not isValidNumber(displayText) or self._left is None:
+            self._showError('Conta incompleta.')
             return
 
-        if text in ["+", "-", "*", "/", "^"]:
-            current_value = self.display.text()
-            if not isValidNumber(current_value):
-                return
+        self._right = converToNumber(displayText)
+        self.equation = f'{self._left} {self._op} {self._right}'
+        result = 'error'
 
-            if self._left is not None and self._op is not None:
-                self._calculate()
-            else:
-                self._left = convertoNumber(current_value)
-
-            self._op = text
-            self.info.setText(f"{self._left} {self._op}")
-            self._reset_next = True
-            return
-
-        if isNumOrDot(text):
-            new_text = text if self._reset_next or self.display.text() == "0" else self.display.text() + text
-            if isValidNumber(new_text):
-                self.display.setText(new_text)
-                self._reset_next = False
-
-    def _calculate(self):
-        if self._left is None or self._op is None:
-            return
-
-        right_value = converToNumber(self.display.text())
         try:
-            if self._op == "+":
-                result = self._left + right_value
-            elif self._op == "-":
-                result = self._left - right_value
-            elif self._op == "*":
-                result = self._left * right_value
-            elif self._op == "/":
-                result = self._left / right_value
-            elif self._op == "^":
-                result = math.pow(self._left, right_value)
+            if '^' in self.equation and isinstance(self._left, (float, int)):
+                result = math.pow(self._left, self._right)
+                result = converToNumber(str(result))
             else:
-                return
+                result = eval(self.equation)
+        except ZeroDivisionError:
+            self._showError('Divisão por zero.')
+        except OverflowError:
+            self._showError('Essa conta não pode ser realizada.')
 
-            self.display.setText(str(result))
-            self._left = result
-            self._reset_next = True
+        self.display.clear()
+        self.info.setText(f'{self.equation} = {result}')
+        self._left = result
+        self._right = None
+        self.display.setFocus()
 
-        except Exception:
-            self.display.setText("Error")
+        if result == 'error':
             self._left = None
-            self._op = None
-            self._reset_next = True
+
+    @Slot()
+    def _backspace(self):
+        self.display.backspace()
+        self.display.setFocus()
+
+    def _makeDialog(self, text):
+        msgBox = self.window.makeMsgBox()
+        msgBox.setText(text)
+        return msgBox
+
+    def _showError(self, text):
+        msgBox = self._makeDialog(text)
+        msgBox.setIcon(msgBox.Icon.Critical)
+        msgBox.exec()
+        self.display.setFocus()
+
+    def _showInfo(self, text):
+        msgBox = self._makeDialog(text)
+        msgBox.setIcon(msgBox.Icon.Information)
+        msgBox.exec()
+        self.display.setFocus()
