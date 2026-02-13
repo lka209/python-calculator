@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QGridLayout, QPushButton
 from utils import converToNumber, isNumOrDot, isValidNumber
 from variables import MEDIUM_FONT_SIZE
 
+
 class Button(QPushButton):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -13,12 +14,14 @@ class Button(QPushButton):
         self.setFont(font)
         self.setMinimumSize(75, 75)
 
+
 class ButtonsGrid(QGridLayout):
     def __init__(self, display, info, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.display = display
         self.info = info
-
+        self.buttonsGrid = ButtonsGrid(self.display, self.info)
+        self.addWidgetToVLayout(self.buttonsGrid)
         self._left = None
         self._op = None
         self._reset_next = False
@@ -42,9 +45,11 @@ class ButtonsGrid(QGridLayout):
                 self.addWidget(btn, r, c)
                 btn.clicked.connect(lambda checked, t=text: self._buttonClicked(t))
 
+    def handleKey(self, text: str):
+        self._buttonClicked(text)
+
     @Slot()
     def _buttonClicked(self, text: str):
-        # LIMPAR
         if text == "C":
             self._left = None
             self._op = None
@@ -53,19 +58,16 @@ class ButtonsGrid(QGridLayout):
             self.info.setText("")
             return
 
-        # BACKSPACE
         if text == "◀":
             current = self.display.text()
             self.display.setText(current[:-1] if len(current) > 1 else "0")
             return
 
-        # INVERTER SINAL
         if text == "N":
             current = self.display.text()
             self.display.setText(current[1:] if current.startswith("-") else "-" + current)
             return
 
-        # IGUAL
         if text == "=":
             self._calculate()
             self._op = None
@@ -74,14 +76,12 @@ class ButtonsGrid(QGridLayout):
             self.info.setText("")
             return
 
-        # OPERADORES
         if text in ["+", "-", "*", "/", "^"]:
             current_value = self.display.text()
             if not isValidNumber(current_value):
                 return
 
             if self._left is not None and self._op is not None:
-                self._right = converToNumber(current_value)
                 self._calculate()
             else:
                 self._left = converToNumber(current_value)
@@ -91,7 +91,6 @@ class ButtonsGrid(QGridLayout):
             self._reset_next = True
             return
 
-        # NÚMEROS E PONTO
         if isNumOrDot(text):
             new_text = text if self._reset_next or self.display.text() == "0" else self.display.text() + text
             if isValidNumber(new_text):
