@@ -20,8 +20,7 @@ class ButtonsGrid(QGridLayout):
         super().__init__(*args, **kwargs)
         self.display = display
         self.info = info
-        self.buttonsGrid = ButtonsGrid(self.display, self.info)
-        self.addWidgetToVLayout(self.buttonsGrid)
+        
         self._left = None
         self._op = None
         self._reset_next = False
@@ -84,7 +83,7 @@ class ButtonsGrid(QGridLayout):
             if self._left is not None and self._op is not None:
                 self._calculate()
             else:
-                self._left = converToNumber(current_value)
+                self._left = convertoNumber(current_value)
 
             self._op = text
             self.info.setText(f"{self._left} {self._op}")
